@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Fırsatlar</h1>
+<p class="sub">Puan: beklenen net kâr, marj, rekabet yoğunluğu, platformun kendi satışı, veri güncelliği ve kısıt riski. Gerekçeler her satırda.</p>
+
+<div class="table-wrap"><table>
+<thead><tr><th class="num">Puan</th><th>Ürün</th><th>Platform</th><th class="num">Net kâr</th><th class="num">Marj</th><th>Kısıt</th><th>Gerekçe</th></tr></thead>
+<tbody>
+{% for a in ranked %}{% set r = a.best.result %}
+<tr><td class="num score">{{ a.score }}</td>
+  <td><a href="/product/{{ a.product.id }}">{{ a.product.title }}</a></td>
+  <td>{{ a.best.label }}</td>
+  <td class="num">{{ (r.net_profit if r else none)|eur }}{% if r %}<br><span class="pill {{ r.status }}">{{ r.status_text }}</span>{% endif %}</td>
+  <td class="num">{{ (r.margin_pct if r else none)|pct }}</td>
+  <td><span class="pill {{ a.compliance_summary }}">{{ COMPLIANCE_STATUS[a.compliance_summary] if a.compliance_summary != 'ok' else 'Tamamlandı' }}</span></td>
+  <td class="small">{% for pts, why in a.score_reasons %}<span class="{{ 'neg' if pts < 0 else 'pos' if pts > 0 else 'muted' }}">{{ '%+.0f'|format(pts) }}</span> {{ why }}{{ '; ' if not loop.last }}{% endfor %}</td></tr>
+{% endfor %}
+</tbody></table></div>
+
+<h2>Tedarikçi kataloğu — pazaryeri arama durumu</h2>
+<p class="sub">"Arama sonucunda listelenmedi" = yapılan aramada ilan bulunamadı. Bu, ürünün o platformda <b>hiç satılmadığı anlamına gelmez</b> (farklı EAN, varyant veya arama sınırı olabilir).</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Tedarikçi · SKU</th><th>Ürün</th><th>EAN</th><th>Eşleşme</th><th class="num">Alış</th>
+  {% for pf in platforms %}<th>{{ PLATFORM_LABELS[pf] }}</th>{% endfor %}</tr></thead>
+<tbody>
+{% for it in items %}
+<tr><td>{{ it.supplier }}<br><span class="muted small">{{ it.supplier_sku or '' }}</span></td>
+  <td>{% if it.product_id or it.candidate_product_id %}<a href="/product/{{ it.product_id or it.candidate_product_id }}">{{ it.title }}</a>{% else %}{{ it.title }}{% endif %}</td>
+  <td>{{ it.ean or '—' }}{% if it.ean_valid == 0 %} <span class="pill risk">geçersiz</span>{% endif %}</td>
+  <td><span class="pill {{ 'candidate' if it.match_status in ('candidate', 'unmatched') else 'ok' }}">{{ {'ean': 'EAN', 'confirmed': 'onaylandı', 'candidate': 'onay bekliyor', 'unmatched': 'eşleşmedi', 'manual': 'manuel'}[it.match_status] }}</span></td>
+  <td class="num">{{ it.purchase_price_excl_vat|eur }}</td>
+  {% for pf in platforms %}{% set sr = it.searches.get(pf) %}
+  <td>{% if pf in it.listed_platforms %}<span class="pill ok">ilan var</span>
+      {% elif sr and sr.result == 'not_listed_in_search' %}<span class="pill info">arama sonucunda listelenmedi</span><br><span class="muted small">{{ sr.searched_at[:16] }} · {{ sr.source }}</span>
+      {% elif sr %}<span class="pill ok">bulundu</span>
+      {% else %}<span class="muted">aranmadı</span>{% endif %}</td>
+  {% endfor %}
+</tr>
+{% endfor %}
+</tbody></table></div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>CSV içe aktar</h1>
+<p class="sub">API erişimi olmayan kanallar ve tedarikçi katalogları CSV ile yüklenir. Ayırıcı ; veya , olabilir; ondalık virgül desteklenir. Her satır dosya adıyla kaynak olarak kaydedilir.</p>
+
+{% if report %}
+<div class="note {{ 'warn' if report.warnings else '' }}"><b>{{ report.file }}</b>: {{ report.rows }} satır okundu · {{ report.created }} yeni · {{ report.updated }} güncellendi
+  {% if report.warnings %}<ul>{% for w in report.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}</div>
+{% endif %}
+
+<div class="grid">
+{% for kind, title, tpl, desc in [
+  ('supplier', 'Tedarikçi kataloğu', 'supplier_catalog_template.csv', 'Alış fiyatı (KDV hariç), alış KDV oranı, ithalat/gümrük maliyeti. EAN varsa otomatik eşleşir; yoksa marka/model/varyant/ölçü/paket ile aday gösterilir ve onay beklenir.'),
+  ('offers', 'Pazaryeri fiyatları / teklifler', 'marketplace_offers_template.csv', 'Her platform için (bol, amazon_nl, kaufland, mediamarkt, ebay…). Aynı ürün için farklı captured_at satırları fiyat geçmişi olur. Bilinmeyen alanları boş bırakın — tahmin edilmez.'),
+  ('search', 'Arama sonuçları', 'search_results_template.csv', 'Tedarikçi ürünü bir platformda arandı mı? result = found / not_found. not_found → "arama sonucunda listelenmedi".'),
+  ('rules', 'Komisyon kuralları', 'commission_rules_template.csv', 'Platform + kategori başına oran. tiers: "15" ya da "8@20; 15". status: official_verified / user_entered / unverified. Kaynak URL ve kontrol tarihi girin.'),
+] %}
+  <form class="card" method="post" action="/import/{{ kind }}" enctype="multipart/form-data">
+    <h3 style="margin-top:0">{{ title }}</h3>
+    <p class="small muted">{{ desc }}</p>
+    <p><a href="/templates/{{ tpl }}">Şablonu indir ({{ tpl }})</a></p>
+    <input type="file" name="file" accept=".csv,text/csv" required>
+    <button class="primary">Yükle</button>
+  </form>
+{% endfor %}
+</div>
+
+<h2>Kanal erişim durumu</h2>
+<div class="table-wrap"><table><thead><tr><th>Kanal</th><th>Veri erişimi</th><th>Resmî belge</th></tr></thead><tbody>
+{% for key, pf in PLATFORMS.items() %}<tr><td>{{ pf.label }} <span class="muted small">({{ key }})</span></td><td>{{ pf.data_access }}</td>
+  <td>{% if pf.api_docs %}<a href="{{ pf.api_docs }}" target="_blank" rel="noopener">belgeler ↗</a>{% else %}<span class="muted">doğrulanmadı</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

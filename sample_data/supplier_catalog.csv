@@ -1,0 +1,15 @@
+supplier;supplier_sku;ean;brand;model;variant;size;pack_qty;title;purchase_price_excl_vat;purchase_vat_rate;import_cost_per_unit;category_key;price_basis;moq;lead_time_days;quote_date;valid_until;source_url;notes
+Groothandel Noord (ÖRNEK);GN-P1;2000000000015;Kookfix;SP-3;grijs;;1;Kookfix siliconen spatelset 3-delig grijs;3,40;21;0,25;kitchen;catalog;10;2;2026-09-16;;;
+Groothandel Noord (ÖRNEK);GN-P2;2000000000022;Lumo;DL-20;zwart;;1;Lumo LED bureaulamp dimbaar zwart;11,20;21;0,90;home_products;catalog;10;2;2026-09-16;;;
+Groothandel Noord (ÖRNEK);GN-P3;2000000000039;Petvibe;KP-60;;60 cm;1;Petvibe krabpaal mini 60 cm;9,50;21;0,80;pet_supplies;catalog;10;2;2026-09-16;;;
+Groothandel Noord (ÖRNEK);GN-P4;2000000000046;Aquafles;RVS-750;zwart;750 ml;1;Aquafles RVS drinkfles 750 ml zwart;4,10;21;0,20;sports_outdoors;catalog;10;2;2026-09-16;;;
+Groothandel Noord (ÖRNEK);GN-P5;2000000000053;Bouwmax;BM-32;;;1;Bouwmax schroevendraaierset 32-delig;6,80;21;0,40;tools;catalog;10;2;2026-09-16;;;
+Groothandel Noord (ÖRNEK);GN-P6;2000000000060;Speelbos;HP-24;;;1;Speelbos houten puzzel 24 stukjes;3,90;21;0,30;toys;catalog;10;2;2026-09-16;;;
+Groothandel Noord (ÖRNEK);GN-P7;2000000000077;Snoerloos;C2-2P;;2 m;1;Snoerloos USB-C kabel 2 m 2-pack;2,20;21;0,10;electronic_accessories;catalog;10;2;2026-09-16;;;
+Groothandel Noord (ÖRNEK);GN-P8;2000000000084;Glowskin;SER-30;;30 ml;1;Glowskin gezichtsserum 30 ml;5,10;21;0,00;beauty;catalog;10;2;2026-09-16;;;
+Lumo Benelux distributeur (ÖRNEK);LB-DL20;2000000000022;Lumo;DL-20;zwart;;1;Lumo LED bureaulamp dimbaar zwart;10,40;21;0,00;;quote;50;5;2026-09-24;2026-10-24;;Staffel ÖRNEK: 100+ stuks €9,90
+Toptan platform — Lumo merkpagina (ÖRNEK);AK-LUMO-DL20;2000000000022;Lumo;DL-20;zwart;;1;Lumo LED bureaulamp dimbaar zwart;12,90;21;0,00;;platform;4;7;2026-09-28;;;
+Import Oost (ÖRNEK);IO-RVS750;2000000000046;Aquafles;RVS-750;zwart;750 ml;1;Aquafles RVS drinkfles 750 ml zwart;3,20;21;0,55;;quote;300;35;2026-05-23;2026-08-21;;"FOB-teklif ÖRNEK; zeevracht + invoerrecht geschat"
+Import Oost (ÖRNEK);IO-7781;;Kookfix;SP 3;;;1;KOOKFIX spatel set 3st;2,95;21;0,60;kitchen;;;;;;;
+Groothandel Noord (ÖRNEK);GN-NB3;2000000000503;Nordhout;NB-3;;;3;Nordhout bamboe snijplankenset 3 stuks;5,60;21;0,45;kitchen;;;;;;;
+Import Oost (ÖRNEK);IO-9120;2,00E+12;Kookfix;PL-2;;;2;Kookfix pannenlappen 2 stuks;1,80;21;;kitchen;;;;;;;

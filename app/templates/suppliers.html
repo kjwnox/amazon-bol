@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Tedarikçiler</h1>
+<p class="sub">Kayıtlı tedarikçileriniz ve tedarikçi bulma kaynakları. Tedarikçi fiyatları yalnızca sizin girdiğiniz veya CSV ile yüklediğiniz kayıtlardan gelir — uygulama fiyat tahmin etmez veya siteleri taramaz.</p>
+
+<h2>Kayıtlı tedarikçiler</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Tedarikçi</th><th class="num">Kayıt</th><th class="num">Fiyatlı</th><th>Fiyat türleri</th><th class="num">MOQ</th><th>Son fiyat tarihi</th></tr></thead><tbody>
+{% for r in rows %}
+<tr><td><a href="/opportunities">{{ r.supplier }}</a></td><td class="num">{{ r['items'] }}</td><td class="num">{{ r.priced }}</td>
+  <td class="small">{{ r.bases or '—' }}</td>
+  <td class="num">{% if r.min_moq %}{{ r.min_moq }}{% if r.max_moq != r.min_moq %}–{{ r.max_moq }}{% endif %}{% else %}—{% endif %}</td>
+  <td class="small">{{ r.last_quote or '—' }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">Henüz tedarikçi yok. <a href="/import">Tedarikçi CSV'si yükleyin</a> veya ürün sayfasından fiyat ekleyin.</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="muted small">{{ stale_days|int }} günden eski fiyatlar ürün sayfasında "eski" olarak işaretlenir (<a href="/settings#general">Ayarlar</a>'dan değiştirilebilir).</p>
+
+<h2>Tedarikçi bulma kaynakları</h2>
+<p class="sub">Erişim koşulları {{ checked }} tarihinde kontrol edildi. Ürüne özel arama bağlantıları her ürün sayfasının "Tedarikçiler" bölümündedir.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Kaynak</th><th>Tür</th><th>Fiyat görünürlüğü</th><th>Nasıl kullanılır</th></tr></thead><tbody>
+{% for s in sources %}
+<tr><td><a href="{{ s.url }}" target="_blank" rel="noopener"><b>{{ s.name }}</b> ↗</a><br><span class="muted small">{{ s.region }}</span></td>
+  <td class="small">{{ s.kind }}</td><td class="small">{{ s.price_visibility }}</td><td class="small">{{ s.how }}</td></tr>
+{% endfor %}
+</tbody></table></div>
+
+<div class="note">Tedarikçi fiyatlarını toplu yüklemek için <a href="/templates/supplier_catalog_template.csv">tedarikçi şablonunu</a> kullanın:
+  <code>price_basis</code> (quote / catalog / platform / manual), <code>moq</code>, <code>lead_time_days</code>, <code>quote_date</code>, <code>valid_until</code>, <code>source_url</code>, <code>notes</code> sütunları isteğe bağlıdır.</div>
+{% endblock %}

@@ -1,0 +1,2 @@
+supplier;supplier_sku;ean;brand;model;variant;size;pack_qty;title;purchase_price_excl_vat;purchase_vat_rate;import_cost_per_unit;category_key;price_basis;moq;lead_time_days;quote_date;valid_until;source_url;notes
+Tedarikçi BV;SKU-001;2000000000015;Merk;MOD-1;zwart;500 ml;1;Merk product 500 ml zwart;4,25;21;0,30;kitchen;catalog;12;3;2026-09-30;2026-12-31;;Staffel: 48+ stuks €3,95

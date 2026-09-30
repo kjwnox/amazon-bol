@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}{{ a.product.title }} · {{ APP_NAME }}{% endblock %}
+{% block content %}
+{% set p = a.product %}
+<p class="small"><a href="/">← Pano</a></p>
+<h1>{{ p.title }}</h1>
+<p class="sub">EAN/GTIN: <b>{{ p.ean or 'yok' }}</b>
+  {% if p.brand %}· Marka: {{ p.brand }}{% endif %}{% if p.model %} · Model: {{ p.model }}{% endif %}
+  {% if p.variant %} · Varyant: {{ p.variant }}{% endif %}{% if p.size %} · Ölçü: {{ p.size }}{% endif %} · Paket: {{ p.pack_qty }}
+  · <span class="pill {{ a.status }}">{{ STATUS_TEXT.get(a.status, 'Pazaryeri verisi yok') }}</span>
+  · Fırsat puanı <span class="score">{{ a.score }}</span>/100</p>
+
+{% for c in a.candidates %}
+<div class="note warn"><b>Eşleşme onayı gerekli:</b> {{ PLATFORM_LABELS.get(c.platform, c.platform) }} kaydı EAN olmadan marka/model/paket adedine göre bu ürüne aday gösterildi. Onaylanana kadar analize katılmaz.
+  <form class="inline" method="post" action="/listing/{{ c.id }}/confirm"><button class="primary">Aynı ürün — onayla</button></form>
+  <form class="inline" method="post" action="/listing/{{ c.id }}/reject"><button class="danger">Farklı ürün — reddet</button></form>
+</div>
+{% endfor %}
+{% for s in supplier_rows if s.match_status == 'candidate' and s.candidate_product_id == p.id %}
+<div class="note warn"><b>Tedarikçi eşleşme onayı:</b> {{ s.supplier }} · {{ s.title }} ({{ s.purchase_price_excl_vat|eur }}) — {{ s.match_note }}
+  <form class="inline" method="post" action="/supplier/{{ s.id }}/confirm"><button class="primary">Aynı ürün — onayla</button></form>
+  <form class="inline" method="post" action="/supplier/{{ s.id }}/reject"><button class="danger">Farklı ürün</button></form>
+</div>
+{% endfor %}
+
+<h2>Platform teklifleri</h2>
+{% if not a.platforms %}<p class="muted">Bu ürün için pazaryeri verisi yok. Arama sonucu kaydı için <a href="/opportunities">Fırsatlar</a> sayfasına bakın.</p>{% endif %}
+<div class="grid">
+{% for v in a.platforms %}{% set s = v.snapshot %}
+  <div class="card">
+    <h3 style="margin-top:0">{{ v.label }} {% if v.stale %}<span class="pill stale">veri {{ (v.age_hours/24)|round(1) }} gün önce</span>{% endif %}</h3>
+    <dl class="kv">
+      <dt>Öne çıkan fiyat</dt><dd><b>{{ s.price|eur }}</b> (KDV dahil)</dd>
+      <dt>Kargo ücreti</dt><dd>{{ s.shipping_cost|eur('Bilinmiyor — kaynak vermiyor') }}</dd>
+      <dt>Teslimat</dt><dd>{% if s.delivery_min_days is not none %}{{ s.delivery_min_days }}–{{ s.delivery_max_days }} gün{% else %}Bilinmiyor{% endif %}</dd>
+      <dt>Teklif / satıcı</dt><dd>{{ s.offer_count if s.offer_count is not none else '?' }} teklif · {{ s.seller_count if s.seller_count is not none else '?' }} satıcı</dd>
+      <dt>Öne çıkan teklif</dt><dd>{{ s.featured_seller_name or s.featured_seller_id or 'Bilinmiyor' }}</dd>
+      <dt>{{ v.label }} satıcı mı?</dt><dd>{{ s.featured_is_platform|tri('Evet — öne çıkan teklif platformun kendisi', 'Hayır — üçüncü taraf satıcı') }}</dd>
+      <dt>{{ v.label }} tarafından gönderiliyor</dt><dd>{{ s.featured_fulfilled_by_platform|tri('Evet (FBA/LVB)', 'Hayır — satıcı gönderiyor') }}</dd>
+      <dt>Platform ürünü kendisi satıyor</dt><dd>{{ s.platform_sells|tri }}</dd>
+      <dt>Bağlantı</dt><dd>{% if v.listing.url %}<a href="{{ v.listing.url }}" target="_blank" rel="noopener">ürün sayfası ↗</a>{% else %}<span class="muted">yok</span>{% endif %}</dd>
+      <dt>Fiyat zamanı</dt><dd>{{ s.captured_at }}</dd>
+      <dt>Kaynak</dt><dd>{{ s.source }}</dd>
+      <dt>Eşleştirme</dt><dd>{{ 'EAN/GTIN' if v.listing.match_method == 'ean' else 'Nitelik — kullanıcı onayladı' }}</dd>
+    </dl>
+    {% if s.note %}<p class="muted small">Not: {{ s.note }}</p>{% endif %}
+  </div>
+{% endfor %}
+</div>
+{% if a.price_diff %}
+<div class="note">Brüt fiyat farkı: <b>{{ a.price_diff.diff_eur|eur }}</b> = <b>{{ a.price_diff.diff_pct|pct }}</b>
+  — yüzde, <b>düşük müşteri fiyatı</b> ({{ a.price_diff.low_platform }}) baz alınarak hesaplandı; yüksek fiyat: {{ a.price_diff.high_platform }}.
+  {% if a.price_diff.shipping_unknown %}En az bir platformda kargo ücreti bilinmediği için fark yalnızca ürün fiyatıdır.{% endif %}</div>
+{% endif %}
+
+<h2 id="profit">Kârlılık dökümü (birim başına)</h2>
+<p class="muted small">Satış fiyatı → KDV hariç gelir → platform komisyonu → diğer giderler → net kâr. Giderler KDV hariçtir.
+  Marj = net kâr / KDV hariç gelir. ROI = net kâr / toplam ürün maliyeti (alış + ithalat).</p>
+<div class="grid">
+{% for v in a.platforms %}{% set r = v.result %}
+  <div class="card">
+    <h3 style="margin-top:0">{{ v.label }} <span class="pill {{ r.status if r else 'commission_missing' }}">{{ r.status_text if r else 'Maliyet profili yok' }}</span></h3>
+    {% if not r %}
+      <p class="note bad">Bu platform için maliyet profili yok. <a href="/settings#costs">Ayarlar</a>'dan ekleyin.</p>
+    {% else %}
+      {% if r.status == 'commission_missing' %}
+        <div class="note bad"><b>Komisyon oranı gerekli.</b> Komisyon zorunlu bir maliyettir; oran olmadan net kâr hesaplanmaz.
+        {% if not v.listing.platform_category %}Önce bu ilanın kategorisini seçin:
+          <form method="post" action="/listing/{{ v.listing.id }}/category" class="form" style="margin-top:6px">
+            <label>Kategori anahtarı<input name="category_key" list="rulekeys" required></label><button>Kaydet</button></form>
+        {% else %}
+          <form method="post" action="/settings/rule" class="form" style="margin-top:6px">
+            <input type="hidden" name="platform" value="{{ v.platform }}"><input type="hidden" name="category_key" value="{{ v.listing.platform_category }}">
+            <input type="hidden" name="next" value="/product/{{ p.id }}#profit"><input type="hidden" name="status" value="user_entered">
+            <label>Kategori adı<input name="category_label" value="{{ v.listing.platform_category }}"></label>
+            <label>Oran % (ör. 15 ya da 8@20; 15)<input name="tiers" required></label>
+            <label>Kademe türü<select name="tier_mode"><option value="flat">tek oran</option><option value="threshold">fiyat eşiği</option><option value="portion">dilim bazında</option></select></label>
+            <label>Sabit ücret € (ör. 0.25)<input name="fixed_fee_bands"></label>
+            <label>Min. komisyon €<input name="min_fee"></label>
+            <label>Taban<select name="base"><option value="price">ürün fiyatı</option><option value="price_incl_shipping">fiyat + kargo</option></select></label>
+            <label>Kaynak URL<input name="source_url"></label>
+            <button class="primary">Oranı kaydet</button>
+          </form>
+        {% endif %}</div>
+      {% endif %}
+      <table class="waterfall">
+      {% for l in r.lines %}
+        <tr class="{{ l.kind }}"><td>{{ l.label }}{% if l.note %}<br><span class="muted small">{{ l.note }}</span>{% endif %}</td>
+          <td class="num {{ 'neg' if l.amount < 0 and l.kind == 'result' }}">{% if l.kind != 'info' %}{{ l.amount|eur }}{% endif %}</td></tr>
+      {% endfor %}
+      </table>
+      <dl class="kv" style="margin-top:10px">
+        {% if r.net_profit is not none %}
+        <dt>Net kâr</dt><dd class="{{ 'neg' if r.net_profit < 0 else 'pos' }}"><b>{{ r.net_profit|eur }}</b></dd>
+        <dt>Kâr marjı</dt><dd>{{ r.margin_pct|pct }}</dd>
+        <dt>ROI</dt><dd>{{ r.roi_pct|pct }}</dd>
+        <dt>Başabaş satış fiyatı</dt><dd>{{ r.break_even_price|eur }} (KDV dahil)</dd>
+        {% elif r.status == 'no_purchase_price' %}
+        <dt>Kâr</dt><dd>Alış fiyatı olmadan gösterilmez.</dd>
+        <dt>Başabaş alış fiyatı</dt><dd>{{ r.max_purchase_price|eur }} (KDV hariç, ithalat dahil değil) — bu satış fiyatında en fazla bu kadar ödenebilir</dd>
+        {% endif %}
+        {% if v.rule %}
+        <dt>Komisyon kuralı</dt><dd>{{ v.rule.category_label }} — {{ v.rule.describe() }}<br>
+          <span class="pill {{ v.rule.status }}">{{ RULE_STATUS[v.rule.status] }}</span>
+          <span class="muted small">kontrol: {{ v.rule.checked_at or '—' }}{% if v.rule.source_url %} · <a href="{{ v.rule.source_url.split(' ')[0] }}" target="_blank" rel="noopener">kaynak</a>{% endif %}</span>
+          {% if v.rule.notes %}<br><span class="muted small">{{ v.rule.notes }}</span>{% endif %}</dd>
+        {% endif %}
+      </dl>
+      {% if r.missing %}<div class="note warn"><b>Eksik / doğrulanmamış:</b> {{ r.missing|join(', ') }}</div>{% endif %}
+    {% endif %}
+  </div>
+{% endfor %}
+</div>
+<datalist id="rulekeys">{% for k in rule_keys %}<option value="{{ k }}">{% endfor %}</datalist>
+
+<h2 id="suppliers">Tedarikçiler ve alış fiyatları</h2>
+<p class="muted small">Her tedarikçi fiyatıyla, aynı satış fiyatı ve maliyet varsayımlarıyla hesaplanan net kâr. Hesapta kullanılan = birim maliyeti
+  (alış + ithalat) en düşük olan. MOQ, teslim süresi ve teklifin tarihini ayrıca değerlendirin. Fiyatlar yalnızca sizin girdiğiniz veya CSV ile yüklediğiniz kayıtlardır.</p>
+<div class="table-wrap">
+{% if a.supplier_options %}
+<table><thead><tr><th>Tedarikçi</th><th>Fiyat türü</th><th class="num">Alış<br><span class="muted small">KDV hariç</span></th><th class="num">İthalat</th>
+  <th class="num">Birim maliyet</th><th class="num">MOQ</th><th class="num">Teslim</th><th>Fiyat tarihi</th>
+  {% for v in a.platforms %}<th class="num">{{ v.label }}<br><span class="muted small">net kâr · marj · ROI</span></th>{% endfor %}<th></th></tr></thead><tbody>
+{% for o in a.supplier_options %}{% set s = o.item %}
+<tr><td><b>{{ s.supplier }}</b>{% if a.supplier and a.supplier.id == s.id %} <span class="pill ok">hesapta kullanılan</span>{% endif %}
+    {% if s.source_url %}<br><a class="small" href="{{ s.source_url }}" target="_blank" rel="noopener">kaynak ↗</a>{% endif %}
+    {% if s.notes %}<br><span class="muted small">{{ s.notes }}</span>{% endif %}</td>
+  <td class="small">{{ {'quote': 'Teklif', 'catalog': 'Fiyat listesi', 'platform': 'Toptan platform', 'manual': 'Elle'}.get(s.price_basis, s.price_basis or '—') }}</td>
+  <td class="num">{{ s.purchase_price_excl_vat|eur('bilinmiyor') }}</td>
+  <td class="num">{{ s.import_cost_per_unit|eur('bilinmiyor') }}</td>
+  <td class="num"><b>{{ o.unit_cost|eur }}</b></td>
+  <td class="num">{{ s.moq or '—' }}</td>
+  <td class="num">{{ (s.lead_time_days ~ ' gün') if s.lead_time_days else '—' }}</td>
+  <td class="small">{{ s.quote_date or '—' }}{% if o.expired %} <span class="pill risk">süresi doldu</span>{% elif o.stale %} <span class="pill stale">eski ({{ o.age_days }} gün)</span>{% endif %}
+    {% if s.valid_until %}<br><span class="muted">geçerli: {{ s.valid_until }}</span>{% endif %}</td>
+  {% for v in a.platforms %}{% set r = o.results.get(v.platform) %}
+  <td class="num">{% if r and r.net_profit is not none %}<span class="{{ 'neg' if r.net_profit < 0 else 'pos' }}">{{ r.net_profit|eur }}</span><br>
+      <span class="small">{{ r.margin_pct|pct }} · {{ r.roi_pct|pct }}</span><br><span class="pill {{ r.status }}">{{ r.status_text }}</span>
+    {% elif r %}<span class="pill {{ r.status }}">{{ r.status_text }}</span>{% else %}—{% endif %}</td>
+  {% endfor %}
+  <td><form class="inline" method="post" action="/supplier/{{ s.id }}/delete" onsubmit="return confirm('Bu tedarikçi fiyatı silinsin mi?')"><button class="danger">Sil</button></form></td></tr>
+{% endfor %}
+</tbody></table>
+{% else %}<p class="note warn" style="margin:12px">Alış fiyatı yok — kârlılık gösterilmiyor. Aşağıdaki kaynaklardan tedarikçi bulup fiyatı kaydedin.</p>{% endif %}
+</div>
+
+<div class="grid" style="margin-top:16px">
+  <form class="card form" method="post" action="/product/{{ p.id }}/quote">
+    <h3 style="grid-column:1/-1;margin:0">Tedarikçi fiyatı / teklifi ekle</h3>
+    <label>Tedarikçi<input name="supplier" required placeholder="Firma adı"></label>
+    <label>Fiyat türü<select name="price_basis"><option value="quote">Teklif</option><option value="catalog">Fiyat listesi</option><option value="platform">Toptan platform (Ankorstore…)</option><option value="manual">Elle</option></select></label>
+    <label>Alış fiyatı € (KDV hariç, birim)<input name="price" required></label>
+    <label>Alış KDV %<input name="vat" value="21"></label>
+    <label>İthalat/gümrük/nakliye € (birim; yoksa 0)<input name="import_cost" value="0"></label>
+    <label>MOQ (adet)<input name="moq"></label>
+    <label>Teslim süresi (gün)<input name="lead_time_days"></label>
+    <label>Fiyat tarihi<input type="date" name="quote_date" value="{{ today }}"></label>
+    <label>Geçerlilik<input type="date" name="valid_until"></label>
+    <label style="grid-column:1/-1">Kaynak bağlantısı<input name="source_url" placeholder="https://…"></label>
+    <label style="grid-column:1/-1">Not<input name="notes" placeholder="Ödeme koşulu, kademeli fiyat, Incoterm…"></label>
+    <button class="primary">Kaydet</button>
+  </form>
+
+  <div class="card">
+    <h3 style="margin-top:0">Tedarikçi bul</h3>
+    <p class="small muted">Bağlantılar arama sayfasını açar; fiyat otomatik alınmaz. Bulduğunuz fiyatı soldaki formla kaydedin.</p>
+    <table><tbody>
+    {% for s in source_links %}
+      <tr><td><a href="{{ s.link }}" target="_blank" rel="noopener"><b>{{ s.name }}</b> ↗</a>
+        {% if not s.direct_search %}<span class="muted small"> (ana sayfa — aranacak: <b>{{ s.q }}</b>)</span>{% endif %}
+        <br><span class="small muted">{{ s.kind }} · {{ s.region }}</span></td>
+        <td class="small">{{ s.price_visibility }}</td></tr>
+    {% endfor %}
+    </tbody></table>
+    <p class="small muted">Markalı üründe en güvenilir yol: EAN ile GS1'den marka sahibini bulun → marka sahibi veya Benelux distribütöründen teklif isteyin (yetkili satıcı şartı için <a href="#compliance">kısıt kontrollerine</a> bakın).</p>
+  </div>
+</div>
+
+<h2 id="costs">Ürüne özel maliyetler</h2>
+<div class="grid">
+{% for v in a.platforms %}{% set o = overrides.get(v.platform, {}) %}{% set c = costs.get(v.platform) %}
+  <form class="card form" method="post" action="/product/{{ p.id }}/override/{{ v.platform }}">
+    <h3 style="grid-column:1/-1;margin:0">{{ v.label }} <span class="muted small">model: {{ c.fulfilment_model if c else '—' }} · boş = platform profilindeki değer</span></h3>
+    <label>Fulfilment ücreti € (FBA/LVB)<input name="fulfilment_fee" value="{{ o.fulfilment_fee_per_unit if o.fulfilment_fee_per_unit is not none }}"></label>
+    <label>Satıcı kargosu €<input name="shipping" value="{{ o.seller_shipping_per_unit if o.seller_shipping_per_unit is not none }}"></label>
+    <label>Paketleme €<input name="packaging" value="{{ o.packaging_per_unit if o.packaging_per_unit is not none }}"></label>
+    <label>Reklam % gelir<input name="ad_pct" value="{{ o.ad_spend_pct if o.ad_spend_pct is not none }}"></label>
+    <label>Satış KDV % (ör. 9)<input name="sale_vat" value="{{ (o.sale_vat_rate * 100)|round(1) if o.sale_vat_rate is not none }}"></label>
+    <button>Kaydet</button>
+    {% if o.source %}<span class="muted small" style="grid-column:1/-1">Kaynak: {{ o.source }} · {{ o.updated_at }}</span>{% endif %}
+  </form>
+{% endfor %}
+</div>
+
+<h2>Fiyat geçmişi</h2>
+{% if a.platforms %}
+<div class="card">
+  <div class="legend">{% for v in a.platforms %}<span><i style="background:var(--series-{{ 1 if v.platform == 'amazon_nl' else 2 if v.platform == 'bol' else 3 }})"></i>{{ v.label }}</span>{% endfor %}</div>
+  <div class="chart-box"><canvas id="chart" aria-label="Fiyat geçmişi grafiği"></canvas></div>
+  <p class="muted small">Yalnızca kaydedilen ölçümler gösterilir; aralar doldurulmaz, satış hacmi tahmin edilmez.</p>
+  {% for v in a.platforms %}{% for sp in v.spikes %}
+    <div class="note {{ 'bad' if sp.change_pct < 0 else '' }}">{{ v.label }}: ani fiyat {{ sp.direction }}ı {{ sp.from_price|eur }} → {{ sp.to_price|eur }} ({{ sp.change_pct }}%) · {{ sp.at }}</div>
+  {% endfor %}{% endfor %}
+  <details><summary>Tablo görünümü</summary>
+    <table><thead><tr><th>Platform</th><th>Zaman</th><th class="num">Fiyat</th></tr></thead><tbody>
+    {% for v in a.platforms %}{% for t, pr in v.history|reverse %}<tr><td>{{ v.label }}</td><td>{{ t }}</td><td class="num">{{ pr|eur }}</td></tr>{% endfor %}{% endfor %}
+    </tbody></table></details>
+</div>
+{% endif %}
+
+<h2>Fırsat puanı: {{ a.score }}/100</h2>
+<div class="card"><ul class="reasons">
+  {% for pts, why in a.score_reasons %}<li><b class="{{ 'neg' if pts < 0 else 'pos' if pts > 0 else 'muted' }}">{{ '%+.0f'|format(pts) }}</b> {{ why }}</li>{% endfor %}
+</ul><p class="muted small">Değerlendirilen platform: {{ a.best.label if a.best else '—' }} (en yüksek net kâr).</p></div>
+
+<h2 id="compliance">Kısıt ve uyum kontrolleri <span class="pill {{ a.compliance_summary }}">{{ COMPLIANCE_STATUS[a.compliance_summary] if a.compliance_summary != 'ok' else 'Tamamlandı' }}</span></h2>
+<div class="note warn">Otomatik doğrulama yapılmaz. Marka sicillerinde "kayıt bulunamadı" sonucu <b>satış hakkı garantisi değildir</b>. Resmî aramalar:
+  {% for label, url in trademark_links %}<a href="{{ url }}" target="_blank" rel="noopener">{{ label }} ↗</a>{{ ' · ' if not loop.last }}{% endfor %}
+  {% if p.brand %} — aranacak marka: <b>{{ p.brand }}</b>{% endif %}</div>
+<div class="table-wrap"><table>
+<thead><tr><th>Kontrol</th><th>Durum</th><th>Not</th><th></th></tr></thead><tbody>
+{% for c in a.compliance_rows %}{% set meta = CHECKS[c.check_key] %}
+<tr><td><b>{{ meta.label }}</b><br><span class="muted small">{{ meta.help }}</span>
+  {% if meta.links %}<br>{% for label, url in meta.links %}<a class="small" href="{{ url }}" target="_blank" rel="noopener">{{ label }} ↗</a> {% endfor %}{% endif %}</td>
+  <td colspan="3"><form class="form" method="post" action="/product/{{ p.id }}/compliance/{{ c.check_key }}" style="grid-template-columns: 200px 1fr auto">
+    <select name="status">{% for k, v in COMPLIANCE_STATUS.items() %}<option value="{{ k }}" {{ 'selected' if c.status == k }}>{{ v }}</option>{% endfor %}</select>
+    <input name="note" value="{{ c.note or '' }}" placeholder="Sonuç, tarih, belge…">
+    <button>Kaydet</button></form>
+    <span class="muted small">güncelleme: {{ c.updated_at }}</span></td></tr>
+{% endfor %}
+</tbody></table></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  const data = {{ chart_json|safe }};
+  const el = document.getElementById('chart');
+  if (!el || !window.Chart) return;
+  const css = getComputedStyle(document.documentElement);
+  const color = p => css.getPropertyValue(p === 'amazon_nl' ? '--series-1' : p === 'bol' ? '--series-2' : '--series-3').trim();
+  const ink = css.getPropertyValue('--text-2').trim(), grid = css.getPropertyValue('--border').trim();
+  const eur = v => '€' + v.toFixed(2).replace('.', ',');
+  const fmt = ms => new Date(ms).toLocaleString('nl-NL', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'});
+  new Chart(el, {
+    type: 'line',
+    data: {datasets: data.series.map(s => ({
+      label: s.label, data: s.points.map(p => ({x: Date.parse(p.x), y: p.y})),
+      borderColor: color(s.platform), backgroundColor: color(s.platform),
+      borderWidth: 2, pointRadius: 3, pointHoverRadius: 6, tension: 0,
+    }))},
+    options: {
+      maintainAspectRatio: false, interaction: {mode: 'nearest', axis: 'x', intersect: false},
+      plugins: {legend: {display: false},
+        tooltip: {callbacks: {title: items => fmt(items[0].parsed.x), label: c => `${c.dataset.label}: ${eur(c.parsed.y)}`}}},
+      scales: {
+        x: {type: 'linear', ticks: {color: ink, callback: v => new Date(v).toLocaleDateString('nl-NL', {day: '2-digit', month: 'short'}), maxTicksLimit: 8}, grid: {color: grid}},
+        y: {ticks: {color: ink, callback: eur}, grid: {color: grid}},
+      },
+    },
+  });
+})();
+</script>
+{% endblock %}

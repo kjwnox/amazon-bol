@@ -1,0 +1,4 @@
+platform;category_key;category_label;tier_mode;tiers;min_fee;fixed_fee_bands;amounts_include_vat;base;status;source_url;checked_at;notes
+amazon_nl;home_products;Home Products;threshold;"8@20; 15";0,30;;0;price_incl_shipping;official_verified;https://sell.amazon.nl/en/prijsstelling;2026-09-30;≤ €20 ise tüm fiyata %8, üstü %15
+amazon_nl;electronic_accessories;Electronic Accessories;portion;"15@100; 8";0,30;;0;price_incl_shipping;official_verified;https://sell.amazon.nl/en/prijsstelling;2026-09-30;€100'e kadar olan kısım %15, aşan kısım %8
+bol;kitchen;Keukenartikelen;flat;10,4;;0,55;0;price;unverified;https://partnerplatform.bol.com/nl/idp/commissie;2026-09-30;ÖRNEK — kendi partner hesabınızdaki oranı yazın

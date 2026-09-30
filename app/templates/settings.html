@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Ayarlar &amp; komisyonlar</h1>
+<p class="sub">Vergi, komisyon ve maliyet oranları kodda sabit değildir; hepsi buradan değiştirilir. API anahtarları yalnızca <code>.env</code> dosyasında tutulur.</p>
+
+<div class="card"><b>Bağlantılar:</b>
+  bol.com Retailer API {{ '✅ yapılandırıldı' if api_bol else '— .env: BOL_CLIENT_ID / BOL_CLIENT_SECRET' }} ·
+  Amazon SP-API {{ '✅ yapılandırıldı' if api_amazon else '— .env: AMAZON_LWA_CLIENT_ID / _SECRET / _REFRESH_TOKEN' }} ·
+  SMTP {{ '✅' if smtp else '— ayarlı değil (e-postalar data/outbox/ klasörüne yazılır)' }}</div>
+
+<h2 id="general">Genel ve uyarı eşikleri</h2>
+<form class="card form" method="post" action="/settings">
+  <label style="flex-direction:row;gap:6px;align-items:center;grid-column:1/-1"><input type="checkbox" name="vat_registered" value="1" {{ 'checked' if s.vat_registered == '1' }}>
+    KDV mükellefiyim (btw-ondernemer) — alış KDV'si ve platform ücretlerinin KDV'si indirilebilir</label>
+  <label>Varsayılan satış KDV %<input name="default_sale_vat_rate" value="{{ (s.default_sale_vat_rate|float * 100)|round(1) }}"></label>
+  <label>Ani değişim eşiği %<input name="spike_threshold_pct" value="{{ s.spike_threshold_pct }}"></label>
+  <label>Veri eski sayılır (saat)<input name="stale_hours" value="{{ s.stale_hours }}"></label>
+  <label>Tedarikçi fiyatı eski sayılır (gün)<input name="quote_stale_days" value="{{ s.quote_stale_days }}"></label>
+  <label>Min. net kâr €<input name="min_net_profit" value="{{ s.min_net_profit }}"></label>
+  <label>Min. marj %<input name="min_margin_pct" value="{{ s.min_margin_pct }}"></label>
+  <label>Min. ROI %<input name="min_roi_pct" value="{{ s.min_roi_pct }}"></label>
+  <label>Maks. satıcı sayısı<input name="max_sellers" value="{{ s.max_sellers }}"></label>
+  <label>Min. fiyat farkı % (0 = kapalı)<input name="min_price_diff_pct" value="{{ s.min_price_diff_pct }}"></label>
+  <label>Uyarı e-postası<input type="email" name="alert_email_to" value="{{ s.alert_email_to }}" placeholder="ad@ornek.nl"></label>
+  <label style="flex-direction:row;gap:6px;align-items:center"><input type="checkbox" name="alerts_require_exact" value="1" {{ 'checked' if s.alerts_require_exact == '1' }}> Yalnızca kesin hesaplarda uyar</label>
+  <button class="primary">Kaydet</button>
+</form>
+
+<h2 id="costs">Platform maliyet profilleri</h2>
+<p class="muted small">Boş alan = bilinmiyor → ilgili hesaplar "tahmini" olur. 0 = bu gider yok. Tutarlar birim başına ve KDV hariç; yüzdeler KDV hariç gelire uygulanır.</p>
+<div class="grid">
+{% for key, pf in PLATFORMS.items() %}{% set c = costs.get(key, {}) %}
+<form class="card form" method="post" action="/settings/costs/{{ key }}">
+  <h3 style="grid-column:1/-1;margin:0">{{ pf.label }}</h3>
+  <label>Fulfilment modeli<select name="fulfilment_model">
+    {% for m, lbl in FULFILMENT_LABELS.items() %}<option value="{{ m }}" {{ 'selected' if c.fulfilment_model == m }}>{{ lbl }}</option>{% endfor %}</select></label>
+  <label>Satış KDV %<input name="sale_vat_rate" value="{{ (c.sale_vat_rate * 100)|round(1) if c.sale_vat_rate is not none else '' }}"></label>
+  <label>Satıcı kargosu € (FBM/FBR)<input name="seller_shipping_per_unit" value="{{ c.seller_shipping_per_unit if c.seller_shipping_per_unit is not none }}"></label>
+  <label>Fulfilment ücreti € (FBA/LVB)<input name="fulfilment_fee_per_unit" value="{{ c.fulfilment_fee_per_unit if c.fulfilment_fee_per_unit is not none }}"></label>
+  <label>Fulfilment ek ücreti %<input name="fulfilment_surcharge_pct" value="{{ c.fulfilment_surcharge_pct if c.fulfilment_surcharge_pct is not none }}"></label>
+  <label>Paketleme €<input name="packaging_per_unit" value="{{ c.packaging_per_unit if c.packaging_per_unit is not none }}"></label>
+  <label>İade payı %<input name="return_allowance_pct" value="{{ c.return_allowance_pct if c.return_allowance_pct is not none }}"></label>
+  <label>Reklam %<input name="ad_spend_pct" value="{{ c.ad_spend_pct if c.ad_spend_pct is not none }}"></label>
+  <label>Ek sabit işlem ücreti €<input name="transaction_fixed_fee" value="{{ c.transaction_fixed_fee if c.transaction_fixed_fee is not none }}"></label>
+  <label>Aylık abonelik €<input name="monthly_plan_fee" value="{{ c.monthly_plan_fee if c.monthly_plan_fee is not none }}"></label>
+  <label>Beklenen aylık satış adedi<input name="expected_monthly_units" value="{{ c.expected_monthly_units if c.expected_monthly_units is not none }}"></label>
+  <label style="grid-column:1/-1">Kaynak / not<input name="fee_source_note" value="{{ c.fee_source_note or '' }}"></label>
+  <button>Kaydet</button>
+</form>
+{% endfor %}
+</div>
+
+<h2 id="rules">Komisyon kuralları</h2>
+<p class="muted small">Kademe türleri: <b>tek oran</b>; <b>fiyat eşiği</b> (fiyat hangi aralıktaysa o oran tüm fiyata); <b>dilim bazında</b> (her dilime kendi oranı).
+  Yazım: <code>8@20; 15</code> = €20'ye kadar %8, üstü %15. Sabit ücret bantları: <code>0.20@10; 0.50</code>.
+  Yalnızca <span class="pill official_verified">resmî</span>, <span class="pill api">API</span> veya <span class="pill user_entered">kullanıcı</span> durumundaki kurallarla "kesin" hesap yapılır.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Platform</th><th>Kategori</th><th>Oran</th><th class="num">Min.</th><th>Sabit ücret</th><th>KDV</th><th>Taban</th><th>Durum</th><th>Kaynak · kontrol</th><th></th></tr></thead><tbody>
+{% for r in rules %}
+<tr><td>{{ PLATFORM_LABELS.get(r.platform, r.platform) }}</td><td>{{ r.category_label }}<br><span class="muted small">{{ r.category_key }}</span></td>
+  <td>{{ {'flat': 'tek', 'threshold': 'eşik', 'portion': 'dilim'}[r.tier_mode] }}: {{ format_tiers(r.tiers) }}</td>
+  <td class="num">{{ r.min_fee|eur }}</td><td>{{ format_bands(r.fixed_fee_bands) or '—' }}</td>
+  <td>{{ 'dahil' if r.amounts_include_vat else 'hariç' }}</td><td class="small">{{ 'fiyat + kargo' if r.base == 'price_incl_shipping' else 'fiyat' }}</td>
+  <td><span class="pill {{ r.status }}">{{ RULE_STATUS[r.status] }}</span></td>
+  <td class="small">{% if r.source_url %}<a href="{{ r.source_url.split(' ')[0] }}" target="_blank" rel="noopener">kaynak ↗</a>{% endif %} {{ r.checked_at or '' }}
+    {% if r.notes %}<details><summary>not</summary>{{ r.notes }}</details>{% endif %}</td>
+  <td><form class="inline" method="post" action="/settings/rule/{{ r.id }}/delete" onsubmit="return confirm('Kural silinsin mi?')"><button class="danger">Sil</button></form></td></tr>
+{% endfor %}
+</tbody></table></div>
+
+<h3>Kural ekle / güncelle</h3>
+<p class="muted small">Aynı platform + kategori anahtarı varsa üzerine yazılır.</p>
+<form class="card form" method="post" action="/settings/rule">
+  <label>Platform<select name="platform">{% for k, pf in PLATFORMS.items() %}<option value="{{ k }}">{{ pf.label }}</option>{% endfor %}</select></label>
+  <label>Kategori anahtarı<input name="category_key" required placeholder="kitchen"></label>
+  <label>Kategori adı<input name="category_label" placeholder="Keukenartikelen"></label>
+  <label>Kademe türü<select name="tier_mode"><option value="flat">tek oran</option><option value="threshold">fiyat eşiği</option><option value="portion">dilim bazında</option></select></label>
+  <label>Oran(lar) %<input name="tiers" required placeholder="15  ya da  8@20; 15"></label>
+  <label>Min. komisyon €<input name="min_fee" placeholder="0.30"></label>
+  <label>Sabit ücret bantları €<input name="fixed_fee_bands" placeholder="0.25@10; 0.95"></label>
+  <label>Taban<select name="base"><option value="price">ürün fiyatı</option><option value="price_incl_shipping">fiyat + kargo</option></select></label>
+  <label style="flex-direction:row;gap:6px;align-items:center"><input type="checkbox" name="amounts_include_vat" value="1"> Tutarlar KDV dahil</label>
+  <label>Durum<select name="status"><option value="user_entered">Kullanıcı girdi</option><option value="official_verified">Resmî kaynaktan doğrulandı</option><option value="unverified">Doğrulanmadı</option></select></label>
+  <label>Kaynak URL<input name="source_url"></label>
+  <label>Kontrol tarihi<input type="date" name="checked_at"></label>
+  <label style="grid-column:1/-1">Not<input name="notes"></label>
+  <button class="primary">Kaydet</button>
+</form>
+{% endblock %}

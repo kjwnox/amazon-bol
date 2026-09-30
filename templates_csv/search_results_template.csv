@@ -1,0 +1,3 @@
+supplier;supplier_sku;platform;result;searched_at;query
+Tedarikçi BV;SKU-001;bol;found;2026-09-30T08:00:00+00:00;EAN 2000000000015
+Tedarikçi BV;SKU-001;amazon_nl;not_found;2026-09-30T08:00:00+00:00;EAN 2000000000015
